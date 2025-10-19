@@ -28,7 +28,7 @@ The project uses a modular architecture:
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/Rohith-2/F1.git
 cd F1
 ```
 
