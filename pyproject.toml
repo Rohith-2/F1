@@ -5,14 +5,19 @@ description = "A Python project for F1 data analysis and machine learning"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "dask>=2025.9.0",
-    "dask-ml>=2025.1.0",
     "fastf1>=3.6.1",
     "h2o>=3.46.0.7",
     "lightgbm>=4.6.0",
-    "matplotlib>=3.10.6",
     "optuna>=4.5.0",
+    "plotly>=6.3.1",
     "scikit-learn>=1.7.2",
-    "seaborn>=0.13.2",
     "tqdm>=4.67.1",
+    "xgboost>=3.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "jupyter>=1.1.1",
+    "seaborn>=0.13.2",
+    "matplotlib>=3.10.6",
 ]

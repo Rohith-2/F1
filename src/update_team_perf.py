@@ -1,11 +1,18 @@
 import time
+import logging
+import warnings
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import fastf1
 import pandas as pd
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from utils import team_mapping
 
+warnings.filterwarnings("ignore")
 fastf1.Cache.enable_cache('./.cache')  # replace with your cache directory
-fastf1.Cache.offline_mode(True)
+logging.getLogger('fastf1').setLevel(logging.ERROR)
+#fastf1.Cache.offline_mode(True)
+
 years = list(range(2018, 2026))
 
 def get_lap_data(session):
@@ -49,19 +56,19 @@ if __name__ == "__main__":
     race_type = 'Q'
     tasks = [(year, race, race_type) for race in range(1, 25) for year in years]
 
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    with ThreadPoolExecutor(max_workers=4) as executor:
         futures = [executor.submit(fetch_lap_data, year, race, race_type) for year, race, race_type in tasks]
         for future in tqdm(as_completed(futures), total=len(futures)):
             result = future.result()
             if result is not None:
                 qualifying_sessions = pd.concat([qualifying_sessions, result], ignore_index=True)
-
+    print('\n','='*20,'\n')
     current_drivers = qualifying_sessions[qualifying_sessions['year']==years[-1]].Driver.unique().tolist()
     print(f"Current Drivers: {current_drivers}")
     circuits = qualifying_sessions['country'].unique().tolist()
     print(f"Circuits: {circuits}")
-    team_mapping = dict(zip(sorted(qualifying_sessions.Team.value_counts().keys().tolist()),[1,2,3,4,5,1,6,7,8,2,9,10,11]))
     print(f"Team Mapping: {team_mapping}")
+    print('\n','='*20,'\n')
 
     driver_stats_list = []
 
@@ -103,7 +110,8 @@ if __name__ == "__main__":
                 'Avg_Finish_in_this_circuit' : float(avg_driver_pos[con]),
                 'Avg_Team_Finish_in_this_circuit' : tf,
                 'Country': con,
-                'Team': team_mapping[team_name]
+                'Team': team_mapping[team_name],
+                'session': qualifying_sessions['session'].values[0],
             })
 
     pd.DataFrame(driver_stats_list).to_csv('.cache/hist_data/team_driver_performance.csv',index=False)

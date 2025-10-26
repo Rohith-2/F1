@@ -1,9 +1,18 @@
 import fastf1
 import pandas as pd
+import datetime
 fastf1.Cache.enable_cache('./.cache') 
 
+def convert(n):
+    try:
+        n = int(n)
+    except:
+        n = float(n)
+    return str(datetime.timedelta(seconds = n))
+
 team_driver_performance = pd.read_csv('.cache/hist_data/team_driver_performance.csv')
-race_int = {'Alfa Romeo': 1, 'AlphaTauri': 2, 'Alpine': 3, 'Aston Martin': 4, 'Ferrari': 5, 'Haas F1 Team': 1, 'Kick Sauber': 6, 'McLaren': 7, 'Mercedes': 8, 'RB': 2, 'Racing Bulls': 9, 'Red Bull Racing': 10, 'Williams': 11}
+race_int = team_mapping = {'Alfa Romeo': 1, 'AlphaTauri': 2, 'Alpine': 3, 'Renault':3,'Aston Martin': 4, 'Ferrari': 5, 'Haas F1 Team': 1, 'Kick Sauber': 6, 'McLaren': 7, 'Mercedes': 8, 'RB': 2, 'Racing Bulls': 2, 'Red Bull Racing': 9, 'Williams': 10}
+MODEL_PATH='./model/model.joblib'
 
 prac_columns = ['DriverNumber_prac','LapTime_prac', 'Sector1Time_prac', 'Sector2Time_prac', 'Sector3Time_prac', 'SpeedI1_prac', 'SpeedI2_prac', 'TyreLife_prac','Position_prac','Driver_prac']
 old_qual_columns = ['LapTime_old_qual', 'Position_old_qual','Sector1Time_old_qual', 'Sector2Time_old_qual', 'Sector3Time_old_qual','Driver_old_qual']
@@ -97,11 +106,18 @@ def load_data(race,year,mode='train'):
         no_qual = True
 
     try:
-        session_p = fastf1.get_session(year,race,'FP3')
-        session_p.load()
-        e_name = session_p.event.EventName
-        lap_prac = get_lap_data(session_p)
-        lap_prac.columns = [f'{col}_prac' if col not in ['Team'] else col for col in lap_prac.columns]
+        try:
+            session_p = fastf1.get_session(year,race,'FP3')
+            session_p.load()
+            e_name = session_p.event.EventName
+            lap_prac = get_lap_data(session_p)
+            lap_prac.columns = [f'{col}_prac' if col not in ['Team'] else col for col in lap_prac.columns]
+        except:
+            session_p = fastf1.get_session(year,race,'SQ')
+            session_p.load()
+            e_name = session_p.event.EventName
+            lap_prac = get_lap_data(session_p)
+            lap_prac.columns = [f'{col}_prac' if col not in ['Team'] else col for col in lap_prac.columns]
     except Exception as e:
         print(f"Error loading practice session for {race} in {year}: {e}")
         lap_prac = pd.DataFrame([[-1]*len(prac_columns)]*20,columns=prac_columns)  # Empty DataFrame if practice session fails
@@ -114,16 +130,30 @@ def load_data(race,year,mode='train'):
     else:
         lap_old_qual_clean = lap_old_qual[old_qual_columns]
         lap_prac_clean = lap_prac[prac_columns]
-        final_lap = (
-            lap_prac_clean
-            .merge(lap_old_qual_clean, left_on='Driver_prac', right_on='Driver_old_qual')
-            .merge(
-                team_driver_performance[team_driver_performance['Country'] == e_name],
-                left_on='Driver_prac', right_on='Name'
+        tdp = team_driver_performance[team_driver_performance['Country'] == e_name]
+        if len(tdp) == 0:
+            tdp = pd.DataFrame([[-1]*len(tdp.columns)]*20,columns=tdp.columns)
+            print(f"Team Driver Performance data missing for {e_name}, filling with -1s.")
+            final_lap = (
+                lap_prac_clean
+                .merge(lap_old_qual_clean, left_on='Driver_prac', right_on='Driver_old_qual')
+                .drop(columns=['Driver_prac', 'Driver_old_qual'])
+                .set_index('DriverNumber_prac')
             )
-            .drop(columns=['Driver_prac', 'Driver_old_qual','Name','Country'])
-            .set_index('DriverNumber_prac')
-        )
+            for col in tdp.columns:
+                if col not in final_lap.columns and col != 'Name':
+                    final_lap[col] = -1
+        else:
+            final_lap = (
+                lap_prac_clean
+                .merge(lap_old_qual_clean, left_on='Driver_prac', right_on='Driver_old_qual')
+                .merge(
+                    tdp,
+                    left_on='Driver_prac', right_on='Name'
+                )
+                .drop(columns=['Driver_prac', 'Driver_old_qual','Name','Country'])
+                .set_index('DriverNumber_prac')
+            )
         final_lap['race_event'] = [race]*len(final_lap) if type(race) == int else [int(session.event.RoundNumber)]*len(final_lap)
         
         if lap_qual is not None:
